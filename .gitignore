@@ -1,0 +1,9 @@
+/bot
+/dist/
+/tmp/
+*.log
+*.mp4
+.env
+.env.local
+.idea/
+.vscode/
