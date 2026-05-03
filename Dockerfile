@@ -19,13 +19,17 @@ RUN go build -trimpath -ldflags="-s -w" -o /app/bot ./
 ## ---- runtime ----------------------------------------------------------
 FROM alpine:3.20
 
+# yt-dlp from PyPI is dramatically newer than the Alpine package — TikTok
+# extractors break often, so a stale yt-dlp is one of the most common
+# causes of "Unable to extract webpage video data" errors.
 RUN apk add --no-cache \
-        yt-dlp \
         ffmpeg \
         python3 \
+        py3-pip \
         ca-certificates \
         tzdata \
-    && update-ca-certificates
+    && update-ca-certificates \
+    && pip3 install --no-cache-dir --break-system-packages --upgrade yt-dlp
 
 # Non-root user for the bot.
 RUN addgroup -S bot && adduser -S -G bot bot

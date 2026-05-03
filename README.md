@@ -5,10 +5,11 @@ A production-ready Telegram bot — written in Go — that delivers the highest-
 ## Features
 
 - **Telegram interface**: send any TikTok URL, get the video back as a file. Concurrent requests are handled in their own goroutines.
-- **Three-tier downloader fallback** (in priority order):
+- **Four-tier downloader fallback** (in priority order):
   1. **`yt-dlp`** — invoked as a subprocess with TikTok-app User-Agent spoofing, geo-bypass, retries and proxy support.
-  2. **Tikhub API** — pulls the `no_watermark_video_url` from `https://api.tikhub.io/api/v1/tiktok/app/v3/fetch_one_video`.
-  3. **SSSTik scraper** — POSTs to `https://ssstik.io/abc?lang=en` and parses the response HTML.
+  2. **TikWM API** — free, no-auth `https://www.tikwm.com/api/`. Returns `play` (no-watermark) and `hdplay` (HD no-watermark). Used by many open-source TikTok bots.
+  3. **Tikhub API** — pulls the `no_watermark_video_url` from `https://api.tikhub.io/api/v1/tiktok/app/v3/fetch_one_video`. Requires `TIKHUB_API_KEY`.
+  4. **SSSTik scraper** — POSTs to `https://ssstik.io/abc?url=dl` and parses the response HTML for the no-watermark anchor (handles `tikcdn.io` URLs without `.mp4` extension).
 - **403 / geo-block bypass**: rotating mobile User-Agents, optional `TIKTOK_COOKIE`, optional HTTP/SOCKS5 proxy, `--geo-bypass-country US`.
 - **Quality assurance**: prefers MP4/H.264, picks the best video+audio combo. Files larger than Telegram's 50 MB limit are re-encoded with `ffmpeg -crf 18 -preset fast` and replaced atomically.
 - **Railway-ready**: HTTP health-check endpoint on `GET /`, graceful `SIGTERM` handling, `Dockerfile`, and `railway.toml`.
@@ -60,14 +61,14 @@ All configuration is read from environment variables at start-up. See [`.env.exa
                        │ internal/downloader.Manager  │
                        └────────────────┬─────────────┘
                                         │ tries each in order
-       ┌────────────────────────────────┼────────────────────────────┐
-       ▼                                ▼                            ▼
- ┌─────────────┐               ┌────────────────┐           ┌────────────────┐
- │  yt-dlp     │               │  Tikhub API    │           │  SSSTik scrape │
- │ (subprocess)│               │  (REST GET)    │           │  (HTML parse)  │
- └──────┬──────┘               └────────┬───────┘           └────────┬───────┘
-        │ MP4 file                       │ MP4 URL → GET             │ MP4 URL → GET
-        ▼                                ▼                           ▼
+    ┌─────────────┬───────────────┬────────────────┬───────────────┐
+    ▼             ▼               ▼                ▼               ▼
+┌────────┐  ┌──────────┐  ┌────────────┐  ┌────────────┐
+│ yt-dlp │  │  TikWM   │  │   Tikhub   │  │   SSSTik   │
+│        │  │  (free)  │  │ (key req)  │  │  (scrape)  │
+└───┬────┘  └────┬─────┘  └─────┬──────┘  └─────┬──────┘
+    │ MP4       │ MP4 URL       │ MP4 URL       │ CDN URL
+    ▼           ▼               ▼               ▼
                        ┌──────────────────────────────┐
                        │ ffmpeg compress (>50 MB only)│
                        └────────────────┬─────────────┘
@@ -81,10 +82,11 @@ All configuration is read from environment variables at start-up. See [`.env.exa
 | `internal/config`              | Env-var loader. |
 | `internal/server`              | Railway health-check HTTP server. |
 | `internal/bot`                 | Telegram long-polling and message handling. |
-| `internal/downloader/manager.go` | Chains the three strategies and delegates to ffmpeg compression. |
+| `internal/downloader/manager.go` | Chains the four strategies and delegates to ffmpeg compression. |
 | `internal/downloader/ytdlp.go` | yt-dlp subprocess wrapper. |
+| `internal/downloader/tikwm.go` | tikwm.com REST client (free, no auth). |
 | `internal/downloader/tikhub.go`| Tikhub REST client + direct HTTP downloader. |
-| `internal/downloader/ssstik.go`| ssstik.io scraper. |
+| `internal/downloader/ssstik.go`| ssstik.io scraper (HTML-parsed). |
 | `internal/downloader/ffmpeg.go`| Re-encodes oversized videos. |
 
 ## Telegram commands

@@ -30,6 +30,12 @@ func New(workDir string, maxFileSize int64, cookie, proxyURL, tikhubKey string, 
 			ProxyURL:         proxyURL,
 			UseChromeCookies: false,
 		},
+		// TikWM is free, no auth required, and handles many TikTok URLs
+		// that yt-dlp's extractor occasionally fails on (e.g. newly
+		// posted videos). Try it before Tikhub to avoid burning quota.
+		&TikWM{
+			Client: httpClient,
+		},
 		&Tikhub{
 			APIKey: tikhubKey,
 			Client: httpClient,
